@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="pip_action_play">Play</string>
+    <string name="pip_action_play_description">Play media</string>
+    <string name="pip_action_pause">Pause</string>
+    <string name="pip_action_pause_description">Pause media</string>
+    <string name="pip_action_next">Next</string>
+    <string name="pip_action_next_description">Skip to next media</string>
+    <string name="pip_action_previous">Previous</string>
+    <string name="pip_action_previous_description">Back to previous media</string>
+    <string name="pip_action_live">Live</string>
+    <string name="pip_action_live_description">Go to live view</string>
+    <string name="pip_action_rewind_10">Rewind</string>
+    <string name="pip_action_rewind_10_description">Rewind 10</string>
+    <string name="pip_action_forward_10">Forward 10</string>
+    <string name="pip_action_forward_10_description">Rewind 10</string>
+    <string name="pip_action_custom">Custom</string>
+    <string name="pip_action_custom_description">Custom action</string>
+    <string name="pip_action_mic_on">Mic On</string>
+    <string name="pip_action_mic_on_description">Turn microphone on</string>
+    <string name="pip_action_mic_off">Mic Off</string>
+    <string name="pip_action_mic_off_description">Turn microphone off</string>
+    <string name="pip_action_camera_on">Camera On</string>
+    <string name="pip_action_camera_on_description">Turn camera on</string>
+    <string name="pip_action_camera_off">Camera Off</string>
+    <string name="pip_action_camera_off_description">Turn camera off</string>
+
+</resources>
