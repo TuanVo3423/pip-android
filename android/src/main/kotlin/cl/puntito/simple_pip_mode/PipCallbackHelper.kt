@@ -1,5 +1,8 @@
 package cl.puntito.simple_pip_mode
 
+import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.util.Rational
 import androidx.annotation.NonNull
 import cl.puntito.simple_pip_mode.actions.PipAction
 import io.flutter.plugin.common.MethodChannel
@@ -8,7 +11,28 @@ import io.flutter.embedding.engine.FlutterEngine
 
 open class PipCallbackHelper {
     private val CHANNEL = "puntito.simple_pip_mode"
+    var shouldEnterPip: Boolean = false
+
+    var aspectRatio: Rational = Rational(9, 16)
+    var autoEnter: Boolean = false
+    var seamlessResize: Boolean = false
+    var actions: List<RemoteAction> = emptyList()
+
+    fun buildPipParams(): PictureInPictureParams {
+        val builder = PictureInPictureParams.Builder()
+            .setAspectRatio(aspectRatio)
+            .setActions(actions)
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(autoEnter)
+            builder.setSeamlessResizeEnabled(seamlessResize)
+        }
+
+        return builder.build()
+    }
+
     private lateinit var channel: MethodChannel
+
 
     fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -24,7 +48,9 @@ open class PipCallbackHelper {
         } else {
             channel.invokeMethod("onPipExited", null)
         }
-    }    fun onPipAction(action: PipAction) {
+    }
+
+    fun onPipAction(action: PipAction) {
         when (action) {
             PipAction.CUSTOM -> {
                 channel.invokeMethod("onCustomPipAction", "custom_action")

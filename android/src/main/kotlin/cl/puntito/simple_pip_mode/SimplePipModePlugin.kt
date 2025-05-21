@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Rational
@@ -42,6 +43,7 @@ enum class PIP_METHODS(val methodName: String) {
     SET_MIC_STATE("setMicState"),
     SET_CAMERA_STATE("setCameraState"),
     SET_MIC_AND_CAMERA_STATES("setMicAndCameraStates"),
+    SET_SHOULD_ENTER_PIP("setShouldEnterPip"),
 }
 
 /** SimplePipModePlugin */
@@ -58,7 +60,10 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var actions: MutableList<RemoteAction> = mutableListOf()
     private var actionsLayout: PipActionsLayout = PipActionsLayout.NONE
 
-    private var callbackHelper = PipCallbackHelper()
+//    private var callbackHelper = PipCallbackHelper()
+    companion object {
+        val callbackHelper = PipCallbackHelper()
+    }
     private var params: PictureInPictureParams.Builder? = null
     private lateinit var broadcastReceiver: BroadcastReceiver
 
@@ -132,6 +137,7 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             PIP_METHODS.SET_MIC_STATE.methodName -> setMicState(call, result)
             PIP_METHODS.SET_CAMERA_STATE.methodName -> setCameraState(call, result)
             PIP_METHODS.SET_MIC_AND_CAMERA_STATES.methodName -> setMicAndCameraStates(call, result)
+            PIP_METHODS.SET_SHOULD_ENTER_PIP.methodName -> setShouldEnterPip(call,result)
             else -> result.notImplemented()
         }
     }
@@ -185,42 +191,52 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
         this.params = params
 
-        result.success(
-            activity.enterPictureInPictureMode(params.build())
-        )
+        result.success(true)
+//        result.success(
+//            activity.enterPictureInPictureMode(params.build())
+//        )
     }    /**
      * Exits Picture-in-Picture mode without terminating the app
      * This can be called from Flutter to programmatically exit PiP mode
      * The window will be hidden but the app will remain in memory so user can reopen it
      */    private fun exitPipMode(result: MethodChannel.Result) {
         try {
-            // Check if the device supports PiP and if we're currently in PiP mode
-            if (activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
-                activity.isInPictureInPictureMode) {
-                
-                // Use moveTaskToBack which hides the activity without destroying it
-                activity.moveTaskToBack(true)
-                
+            if (activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+                && activity.isInPictureInPictureMode) {
+
+                // Reset orientation để phá PiP
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+
+                // Khởi động lại activity (đảm bảo launchMode là singleTop)
+                val intent = Intent(activity, activity::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                activity.startActivity(intent)
+
+                // Tùy chọn: recreate để đảm bảo UI cập nhật
+                activity.recreate()
+
                 result.success(true)
             } else {
-                // If we're not in PiP mode, just return success
                 result.success(true)
             }
         } catch (e: Exception) {
-            Log.e("PIP", "Error exiting PiP mode: ${e.message}")
+            Log.e("PIP_MODE", "Error exiting PiP mode: ${e.message}")
             result.error("ExitPipError", "Error exiting PiP mode", e.message)
         }
     }
 
+
     private fun setPipLayout(call: MethodCall, result: MethodChannel.Result) {
         val success = call.argument<String>("layout")?.let {
             try {
-                Log.i("PIP", "layout = ${convertAction(it)}")
+                Log.i("PIP_MODE", "layout = ${convertAction(it)}")
                 actionsLayout = PipActionsLayout.valueOf(convertAction(it))
                 actions = actionsLayout.remoteActions(context)
+
+                callbackHelper.actions = actions
                 true
             } catch (e: Exception) {
-                Log.e("PIP", e.message?: "Error setting layout")
+                Log.e("PIP_MODE", e.message?: "Error setting layout")
                 false
             }
         } ?: false
@@ -417,5 +433,12 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         } else {
             result.success(false)
         }
+    }
+
+    private  fun setShouldEnterPip(call: MethodCall, result: MethodChannel.Result){
+        val enable = call.arguments as? Boolean ?: true
+        Log.e("PIP_MODE", "setShouldEnterPip callbackHelper.shouldEnterPip ${enable}");
+        callbackHelper.shouldEnterPip = enable
+        result.success(true)
     }
 }

@@ -54,6 +54,11 @@ class SimplePip {
     return exitSuccessfully ?? false;
   }
 
+
+  void setShouldEnterPip(bool isEnterPip)  {
+    _channel.invokeMethod('setShouldEnterPip', isEnterPip);
+  }
+
   /// Request entering PIP mode
   Future<bool> enterPipMode({
     AspectRatio aspectRatio = const (16, 9),
