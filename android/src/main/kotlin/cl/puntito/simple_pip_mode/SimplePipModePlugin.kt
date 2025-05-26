@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Rational
@@ -25,6 +26,8 @@ import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
+import android.os.Handler
+import android.os.Looper
 
 
 /** PIP_METHODS enum */
@@ -42,6 +45,7 @@ enum class PIP_METHODS(val methodName: String) {
     SET_MIC_STATE("setMicState"),
     SET_CAMERA_STATE("setCameraState"),
     SET_MIC_AND_CAMERA_STATES("setMicAndCameraStates"),
+    SET_SHOULD_ENTER_PIP("setShouldEnterPip"),
 }
 
 /** SimplePipModePlugin */
@@ -58,7 +62,10 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var actions: MutableList<RemoteAction> = mutableListOf()
     private var actionsLayout: PipActionsLayout = PipActionsLayout.NONE
 
-    private var callbackHelper = PipCallbackHelper()
+//    private var callbackHelper = PipCallbackHelper()
+    companion object {
+        val callbackHelper = PipCallbackHelper()
+    }
     private var params: PictureInPictureParams.Builder? = null
     private lateinit var broadcastReceiver: BroadcastReceiver
 
@@ -66,34 +73,51 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, CHANNEL)
         callbackHelper.setChannel(channel)
         channel.setMethodCallHandler(this)
+
         context = flutterPluginBinding.applicationContext
+
         broadcastReceiver = object : BroadcastReceiver() {
             @RequiresApi(Build.VERSION_CODES.O)
             override fun onReceive(context: Context, intent: Intent) {
+
+//                Log.e("PIP_MODE", "onReceive action1  ${intent.action}");
+
                 if (SIMPLE_PIP_ACTION !== intent.action) {
                     return
                 }
                 intent.getStringExtra(EXTRA_ACTION_TYPE)?.let {
                     val action = PipAction.valueOf(it)
-                    
+
+                    Log.d("PIP_MODE", "onReceive action2 ${action}");
+
                     when (action) {
                         // Special handling for custom action
                         PipAction.CUSTOM -> {
                             callbackHelper.onPipAction(action)
                         }
-                        // Special handling for mic actions
-                        PipAction.MIC_ON, PipAction.MIC_OFF -> {
+                        PipAction.MIC_ON -> {
                             action.afterAction()?.let {
                                 toggleAction(action)
                             }
-                            callbackHelper.onPipAction(action)
+                            channel.invokeMethod("onMicAction", "mic_on")
                         }
-                        // Special handling for camera actions
-                        PipAction.CAMERA_ON, PipAction.CAMERA_OFF -> {
+                        PipAction.MIC_OFF -> {
                             action.afterAction()?.let {
                                 toggleAction(action)
                             }
-                            callbackHelper.onPipAction(action)
+                            channel.invokeMethod("onMicAction", "mic_off")
+                        }
+                        PipAction.CAMERA_ON -> {
+                            action.afterAction()?.let {
+                                toggleAction(action)
+                            }
+                            channel.invokeMethod("onCameraAction", "camera_on")
+                        }
+                        PipAction.CAMERA_OFF -> {
+                            action.afterAction()?.let {
+                                toggleAction(action)
+                            }
+                            channel.invokeMethod("onCameraAction", "camera_off")
                         }
                         else -> {
                             action.afterAction()?.let {
@@ -132,6 +156,7 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             PIP_METHODS.SET_MIC_STATE.methodName -> setMicState(call, result)
             PIP_METHODS.SET_CAMERA_STATE.methodName -> setCameraState(call, result)
             PIP_METHODS.SET_MIC_AND_CAMERA_STATES.methodName -> setMicAndCameraStates(call, result)
+            PIP_METHODS.SET_SHOULD_ENTER_PIP.methodName -> setShouldEnterPip(call,result)
             else -> result.notImplemented()
         }
     }
@@ -175,7 +200,7 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         val autoEnter = call.argument<Boolean>("autoEnter")
         val seamlessResize = call.argument<Boolean>("seamlessResize")
         var params = PictureInPictureParams.Builder()
-            .setAspectRatio(Rational(aspectRatio!![0], aspectRatio[1]))
+            .setAspectRatio(Rational(9, 16))
             .setActions(actions)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -185,22 +210,25 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
         this.params = params
 
-        result.success(
-            activity.enterPictureInPictureMode(params.build())
-        )
+        result.success(true)
+//        result.success(
+//            activity.enterPictureInPictureMode(params.build())
+//        )
     }    /**
      * Exits Picture-in-Picture mode without terminating the app
      * This can be called from Flutter to programmatically exit PiP mode
      * The window will be hidden but the app will remain in memory so user can reopen it
-     */    private fun exitPipMode(result: MethodChannel.Result) {
+     */
+    private fun exitPipMode(result: MethodChannel.Result) {
         try {
             // Check if the device supports PiP and if we're currently in PiP mode
             if (activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
                 activity.isInPictureInPictureMode) {
-                
-                // Use moveTaskToBack which hides the activity without destroying it
-                activity.moveTaskToBack(true)
-                
+
+                val intent = Intent(activity, activity::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NEW_TASK
+                activity.startActivity(intent)
+
                 result.success(true)
             } else {
                 // If we're not in PiP mode, just return success
@@ -212,15 +240,18 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
+
     private fun setPipLayout(call: MethodCall, result: MethodChannel.Result) {
         val success = call.argument<String>("layout")?.let {
             try {
-                Log.i("PIP", "layout = ${convertAction(it)}")
+                Log.i("PIP_MODE", "layout = ${convertAction(it)}")
                 actionsLayout = PipActionsLayout.valueOf(convertAction(it))
                 actions = actionsLayout.remoteActions(context)
+
+                callbackHelper.actions = actions
                 true
             } catch (e: Exception) {
-                Log.e("PIP", e.message?: "Error setting layout")
+                Log.e("PIP_MODE", e.message?: "Error setting layout")
                 false
             }
         } ?: false
@@ -254,14 +285,14 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val autoEnter = call.argument<Boolean>("autoEnter")
             val seamlessResize = call.argument<Boolean>("seamlessResize")
             val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(aspectRatio!![0], aspectRatio[1]))
+                .setAspectRatio(Rational(9, 16))
                 .setAutoEnterEnabled(autoEnter!!)
                 .setSeamlessResizeEnabled(seamlessResize!!)
                 .setActions(actions)
 
             this.params = params
 
-            activity.setPictureInPictureParams(params.build())
+            (activity as? PipCallbackHelperActivityWrapper)?.setPictureInPictureParams(params.build())
 
             result.success(true)
         } else {
@@ -284,7 +315,7 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         actions = PipActionsLayout.remoteActions(context, actionsLayout.actions)
         params?.let {
             it.setActions(actions).build()
-            activity.setPictureInPictureParams(it.build())
+            (activity as? PipCallbackHelperActivityWrapper)?.setPictureInPictureParams(it.build())
         }
     }
 
@@ -417,5 +448,12 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         } else {
             result.success(false)
         }
+    }
+
+    private  fun setShouldEnterPip(call: MethodCall, result: MethodChannel.Result){
+        val enable = call.arguments as? Boolean ?: true
+        Log.e("PIP_MODE", "setShouldEnterPip callbackHelper.shouldEnterPip ${enable}");
+        callbackHelper.shouldEnterPip = enable
+        result.success(true)
     }
 }

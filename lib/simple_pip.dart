@@ -54,6 +54,11 @@ class SimplePip {
     return exitSuccessfully ?? false;
   }
 
+
+  void setShouldEnterPip(bool isEnterPip)  {
+    _channel.invokeMethod('setShouldEnterPip', isEnterPip);
+  }
+
   /// Request entering PIP mode
   Future<bool> enterPipMode({
     AspectRatio aspectRatio = const (16, 9),
@@ -195,28 +200,35 @@ class SimplePip {
         onCustomPipAction != null ||
         onMicAction != null ||
         onCameraAction != null) {
+      print("Init SimplePip");
       _channel.setMethodCallHandler((call) async {
         print('Received call from native: ${call.method}');
         switch (call.method) {
           case 'onPipEntered':
             onPipEntered?.call();
+            break;
           case 'onPipExited':
             onPipExited?.call();
+            break;
           case 'onPipAction':
             String arg = call.arguments;
             PipAction action = PipAction.values.firstWhere(
               (e) => e.name == arg,
             );
             onPipAction?.call(action);
+            break;
           case 'onCustomPipAction':
             String arg = call.arguments;
             onCustomPipAction?.call(arg);
+            break;
           case 'onMicAction':
             String arg = call.arguments;
             onMicAction?.call(arg);
+            break;
           case 'onCameraAction':
             String arg = call.arguments;
             onCameraAction?.call(arg);
+            break;
         }
       });
     }
