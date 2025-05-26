@@ -231,11 +231,10 @@ class SimplePipModePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
                 result.success(true)
             } else {
-                // If we're not in PiP mode, just return success
                 result.success(true)
             }
         } catch (e: Exception) {
-            Log.e("PIP", "Error exiting PiP mode: ${e.message}")
+            Log.e("PIP_MODE", "Error exiting PiP mode: ${e.message}")
             result.error("ExitPipError", "Error exiting PiP mode", e.message)
         }
     }
